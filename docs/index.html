@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claudegram - Claude Code via Telegram</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e4e4e7;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      padding: 4rem 0;
+    }
+
+    .logo {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #d4a574 0%, #e9c46a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 1rem;
+    }
+
+    .tagline {
+      font-size: 1.25rem;
+      color: #a1a1aa;
+      margin-bottom: 2rem;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #d4a574 0%, #c4956a 100%);
+      color: #1a1a2e;
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      color: #e4e4e7;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin: 4rem 0;
+    }
+
+    .feature {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature h3 {
+      font-size: 1.125rem;
+      margin-bottom: 0.5rem;
+      color: #f4f4f5;
+    }
+
+    .feature p {
+      color: #a1a1aa;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    .architecture {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 2rem;
+      margin: 3rem 0;
+    }
+
+    .architecture h2 {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: #f4f4f5;
+    }
+
+    .flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+
+    .flow-item {
+      background: rgba(212, 165, 116, 0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: 1px solid rgba(212, 165, 116, 0.3);
+    }
+
+    .flow-arrow {
+      color: #d4a574;
+    }
+
+    .commands {
+      margin: 3rem 0;
+    }
+
+    .commands h2 {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      color: #f4f4f5;
+    }
+
+    .command-list {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 1.5rem;
+      font-family: monospace;
+    }
+
+    .command {
+      display: flex;
+      gap: 1rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .command:last-child {
+      border-bottom: none;
+    }
+
+    .command code {
+      color: #d4a574;
+      min-width: 180px;
+    }
+
+    .command span {
+      color: #a1a1aa;
+    }
+
+    footer {
+      text-align: center;
+      padding: 3rem 0;
+      color: #71717a;
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: #d4a574;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">🤖</div>
+      <h1>Claudegram</h1>
+      <p class="tagline">Control Claude Code from your phone via Telegram</p>
+      <div class="cta-buttons">
+        <a href="https://github.com/NachoSEO/claudegram" class="btn btn-primary">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+        <a href="https://github.com/NachoSEO/claudegram#get-started" class="btn btn-secondary">
+          Get Started
+        </a>
+      </div>
+    </header>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">📱</div>
+        <h3>Mobile First</h3>
+        <p>Send messages from anywhere using Telegram. Perfect for quick code checks or fixes on the go.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <h3>Full Agent Power</h3>
+        <p>Access Claude's full capabilities: read files, write code, run commands, and more.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔒</div>
+        <h3>Secure</h3>
+        <p>Runs on your local machine. Only authorized Telegram users can interact with your bot.</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🔄</div>
+        <h3>Streaming</h3>
+        <p>Watch Claude's responses appear in real-time with progressive message updates.</p>
+      </div>
+    </div>
+
+    <div class="architecture">
+      <h2>How it Works</h2>
+      <div class="flow">
+        <span class="flow-item">Telegram App</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item">Claudegram Bot</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item">Claude Code SDK</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-item">Your Machine</span>
+      </div>
+    </div>
+
+    <div class="commands">
+      <h2>Commands</h2>
+      <div class="command-list">
+        <div class="command">
+          <code>/project &lt;name&gt;</code>
+          <span>Open a project from your workspace</span>
+        </div>
+        <div class="command">
+          <code>/newproject &lt;name&gt;</code>
+          <span>Create and open a new project</span>
+        </div>
+        <div class="command">
+          <code>/new</code>
+          <span>Clear session and start fresh</span>
+        </div>
+        <div class="command">
+          <code>/status</code>
+          <span>Show current session info</span>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Built with Claude Code SDK and grammY</p>
+      <p style="margin-top: 0.5rem;">
+        <a href="https://github.com/NachoSEO/claudegram">GitHub</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
