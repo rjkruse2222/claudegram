@@ -297,109 +297,240 @@
       background: rgba(0, 255, 213, 0.1);
     }
 
-    /* Terminal Demo */
-    .terminal-section {
+    /* Telegram Chat Demo */
+    .telegram-section {
       padding: 6rem 0;
     }
 
-    .terminal {
-      background: var(--bg-surface);
-      border: 1px solid var(--glass-border);
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+    .telegram-phone {
+      max-width: 380px;
+      margin: 0 auto;
+      background: #0e1621;
+      border-radius: 40px;
+      padding: 12px;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.1);
       opacity: 0;
       transform: translateY(50px);
       transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .terminal.visible {
+    .telegram-phone.visible {
       opacity: 1;
       transform: translateY(0);
     }
 
-    .terminal-header {
+    .telegram-screen {
+      background: #0e1621;
+      border-radius: 32px;
+      overflow: hidden;
+      border: 3px solid #1c2733;
+    }
+
+    .telegram-header {
+      background: #17212b;
+      padding: 0.75rem 1rem;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 1rem 1.25rem;
-      background: rgba(0, 0, 0, 0.3);
-      border-bottom: 1px solid var(--glass-border);
+      gap: 0.75rem;
+      border-bottom: 1px solid #1c2733;
     }
 
-    .terminal-dot {
-      width: 12px;
-      height: 12px;
+    .telegram-back {
+      color: #6ab3f3;
+      font-size: 1.25rem;
+    }
+
+    .telegram-avatar {
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
+      background: linear-gradient(135deg, var(--neon-cyan) 0%, #0088cc 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
     }
 
-    .terminal-dot.red { background: #ff5f57; }
-    .terminal-dot.yellow { background: #febc2e; }
-    .terminal-dot.green { background: #28c840; }
-
-    .terminal-title {
+    .telegram-contact {
       flex: 1;
-      text-align: center;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.8rem;
-      color: var(--text-muted);
     }
 
-    .terminal-body {
-      padding: 1.5rem;
-      font-family: 'JetBrains Mono', monospace;
+    .telegram-contact-name {
+      font-weight: 600;
+      font-size: 1rem;
+      color: #fff;
+    }
+
+    .telegram-contact-status {
+      font-size: 0.75rem;
+      color: #6ab3f3;
+    }
+
+    .telegram-header-icons {
+      display: flex;
+      gap: 1rem;
+      color: #6ab3f3;
+    }
+
+    .telegram-chat {
+      background: #0e1621;
+      padding: 1rem;
+      min-height: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .chat-message {
+      max-width: 85%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 12px;
       font-size: 0.9rem;
-      line-height: 1.8;
-      min-height: 300px;
-    }
-
-    .terminal-line {
+      line-height: 1.4;
+      position: relative;
       opacity: 0;
-      transform: translateX(-10px);
+      transform: translateY(10px);
     }
 
-    .terminal-line.visible {
-      animation: typeLine 0.4s ease forwards;
+    .chat-message.visible {
+      animation: messageAppear 0.3s ease forwards;
     }
 
-    @keyframes typeLine {
+    @keyframes messageAppear {
       to {
         opacity: 1;
-        transform: translateX(0);
+        transform: translateY(0);
       }
     }
 
-    .terminal-prompt {
+    .chat-message.outgoing {
+      align-self: flex-end;
+      background: #2b5278;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-message.incoming {
+      align-self: flex-start;
+      background: #182533;
+      color: #fff;
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-message .time {
+      font-size: 0.65rem;
+      color: rgba(255,255,255,0.5);
+      margin-left: 0.5rem;
+      float: right;
+      margin-top: 0.25rem;
+    }
+
+    .chat-message.outgoing .time {
+      color: rgba(255,255,255,0.6);
+    }
+
+    .chat-message .check {
+      color: #6ab3f3;
+      margin-left: 0.25rem;
+    }
+
+    .chat-message code {
+      background: rgba(0,0,0,0.3);
+      padding: 0.125rem 0.375rem;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
       color: var(--neon-cyan);
     }
 
-    .terminal-command {
-      color: var(--text-primary);
+    .chat-message .success {
+      color: #5cb85c;
     }
 
-    .terminal-output {
-      color: var(--text-muted);
-      padding-left: 1rem;
-      border-left: 2px solid var(--glass-border);
-      margin: 0.5rem 0;
+    .chat-message .file-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.7);
     }
 
-    .terminal-success {
-      color: #28c840;
+    .telegram-input {
+      background: #17212b;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-top: 1px solid #1c2733;
     }
 
-    .terminal-cursor {
-      display: inline-block;
-      width: 10px;
-      height: 1.2em;
-      background: var(--neon-cyan);
-      animation: cursorBlink 1s step-end infinite;
-      vertical-align: text-bottom;
+    .telegram-input-icon {
+      color: #6ab3f3;
+      font-size: 1.25rem;
+      cursor: pointer;
     }
 
-    @keyframes cursorBlink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0; }
+    .telegram-input-field {
+      flex: 1;
+      background: #242f3d;
+      border: none;
+      border-radius: 20px;
+      padding: 0.6rem 1rem;
+      color: #fff;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .telegram-input-field::placeholder {
+      color: #6b7c8a;
+    }
+
+    .telegram-send {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #6ab3f3;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .telegram-send:hover {
+      transform: scale(1.1);
+    }
+
+    .telegram-send svg {
+      fill: #fff;
+      width: 20px;
+      height: 20px;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 4px;
+      padding: 0.5rem 0.75rem;
+      align-self: flex-start;
+    }
+
+    .typing-indicator span {
+      width: 8px;
+      height: 8px;
+      background: #6ab3f3;
+      border-radius: 50%;
+      animation: typingBounce 1.4s ease-in-out infinite;
+    }
+
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-4px); }
     }
 
     /* Features Section */
@@ -692,39 +823,61 @@
       </div>
     </section>
 
-    <section id="demo" class="terminal-section">
+    <section id="demo" class="telegram-section">
       <div class="container">
-        <div class="terminal" id="terminal">
-          <div class="terminal-header">
-            <div class="terminal-dot red"></div>
-            <div class="terminal-dot yellow"></div>
-            <div class="terminal-dot green"></div>
-            <span class="terminal-title">Telegram Chat</span>
-          </div>
-          <div class="terminal-body">
-            <div class="terminal-line" data-delay="0">
-              <span class="terminal-prompt">You →</span> <span class="terminal-command">/project my-app</span>
+        <div class="telegram-phone" id="telegram-demo">
+          <div class="telegram-screen">
+            <div class="telegram-header">
+              <span class="telegram-back">←</span>
+              <div class="telegram-avatar">⚡</div>
+              <div class="telegram-contact">
+                <div class="telegram-contact-name">Claudegram</div>
+                <div class="telegram-contact-status">online</div>
+              </div>
+              <div class="telegram-header-icons">
+                <span>📞</span>
+                <span>⋮</span>
+              </div>
             </div>
-            <div class="terminal-line" data-delay="400">
-              <span class="terminal-output terminal-success">✓ Project: my-app</span>
+            <div class="telegram-chat" id="chat-messages">
+              <div class="chat-message outgoing" data-delay="0">
+                <code>/project my-app</code>
+                <span class="time">10:24 <span class="check">✓✓</span></span>
+              </div>
+              <div class="chat-message incoming" data-delay="400">
+                <span class="success">✓</span> Project: <strong>my-app</strong>
+                <br><span style="color: rgba(255,255,255,0.6);">You can now chat with Claude about this project!</span>
+                <span class="time">10:24</span>
+              </div>
+              <div class="chat-message outgoing" data-delay="800">
+                Add a dark mode toggle to the header
+                <span class="time">10:25 <span class="check">✓✓</span></span>
+              </div>
+              <div class="chat-message incoming" data-delay="1400">
+                Reading <code>src/components/Header.tsx</code>...
+                <span class="time">10:25</span>
+              </div>
+              <div class="chat-message incoming" data-delay="2000">
+                <span class="success">✓</span> Modified <code>Header.tsx</code><br>
+                <span class="file-info">📄 Added dark mode state and toggle button</span>
+                <span class="time">10:25</span>
+              </div>
+              <div class="chat-message incoming" data-delay="2600">
+                <span class="success">✓</span> Created <code>useTheme.ts</code><br>
+                <span class="file-info">📄 New hook for theme management</span>
+                <span class="time">10:25</span>
+              </div>
+              <div class="chat-message incoming" data-delay="3200">
+                Done! The header now has a dark mode toggle. Click the 🌙 icon to switch themes.
+                <span class="time">10:25</span>
+              </div>
             </div>
-            <div class="terminal-line" data-delay="800">
-              <span class="terminal-prompt">You →</span> <span class="terminal-command">Add a dark mode toggle to the header</span>
-            </div>
-            <div class="terminal-line" data-delay="1200">
-              <span class="terminal-output">Reading src/components/Header.tsx...</span>
-            </div>
-            <div class="terminal-line" data-delay="1600">
-              <span class="terminal-output">Adding dark mode state and toggle button...</span>
-            </div>
-            <div class="terminal-line" data-delay="2000">
-              <span class="terminal-output terminal-success">✓ Modified Header.tsx — added dark mode toggle</span>
-            </div>
-            <div class="terminal-line" data-delay="2400">
-              <span class="terminal-output terminal-success">✓ Created useTheme.ts hook</span>
-            </div>
-            <div class="terminal-line" data-delay="2800">
-              <span class="terminal-prompt">You →</span> <span class="terminal-cursor"></span>
+            <div class="telegram-input">
+              <span class="telegram-input-icon">📎</span>
+              <input type="text" class="telegram-input-field" placeholder="Message" readonly>
+              <button class="telegram-send">
+                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+              </button>
             </div>
           </div>
         </div>
@@ -883,27 +1036,27 @@
     }, observerOptions);
 
     // Observe elements
-    document.querySelectorAll('.terminal, .feature-card, .command-row').forEach(el => {
+    document.querySelectorAll('.telegram-phone, .feature-card, .command-row').forEach(el => {
       observer.observe(el);
     });
 
-    // Terminal typing animation
-    const terminalObserver = new IntersectionObserver((entries) => {
+    // Telegram chat animation
+    const chatObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          const lines = entry.target.querySelectorAll('.terminal-line');
-          lines.forEach((line, index) => {
-            const delay = parseInt(line.dataset.delay) || index * 300;
+          const messages = entry.target.querySelectorAll('.chat-message');
+          messages.forEach((msg) => {
+            const delay = parseInt(msg.dataset.delay) || 0;
             setTimeout(() => {
-              line.classList.add('visible');
+              msg.classList.add('visible');
             }, delay);
           });
-          terminalObserver.unobserve(entry.target);
+          chatObserver.unobserve(entry.target);
         }
       });
     }, { threshold: 0.3 });
 
-    terminalObserver.observe(document.getElementById('terminal'));
+    chatObserver.observe(document.getElementById('telegram-demo'));
 
     // Stagger feature cards
     document.querySelectorAll('.feature-card').forEach((card, index) => {
