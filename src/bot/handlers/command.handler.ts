@@ -1,6 +1,13 @@
 import { Context } from 'grammy';
 import { sessionManager } from '../../claude/session-manager.js';
-import { clearConversation, sendToAgent, setModel, getModel } from '../../claude/agent.js';
+import {
+  clearConversation,
+  sendToAgent,
+  sendLoopToAgent,
+  setModel,
+  getModel,
+  isDangerousMode,
+} from '../../claude/agent.js';
 import { config } from '../../config.js';
 import { messageSender } from '../../telegram/message-sender.js';
 import { getUptimeFormatted } from '../middleware/stale-filter.js';
@@ -16,6 +23,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export async function handleStart(ctx: Context): Promise<void> {
+  const dangerousWarning = isDangerousMode()
+    ? '\n\n⚠️ **DANGEROUS MODE ENABLED** - All tool permissions auto-approved'
+    : '';
+
   const welcomeMessage = `👋 Welcome to Claudegram!
 
 I bridge your messages to Claude Code running on your local machine.
@@ -31,7 +42,7 @@ I bridge your messages to Claude Code running on your local machine.
 • \`/status\` - Show current session info
 • \`/commands\` - Show all available commands
 
-Current mode: ${config.STREAMING_MODE}`;
+Current mode: ${config.STREAMING_MODE}${dangerousWarning}`;
 
   await ctx.reply(welcomeMessage);
 }
@@ -160,6 +171,7 @@ export async function handleStatus(ctx: Context): Promise<void> {
   }
 
   const currentModel = getModel(chatId);
+  const dangerousMode = isDangerousMode() ? '⚠️ ENABLED' : 'Disabled';
 
   const status = `📊 **Session Status**
 
@@ -169,6 +181,7 @@ export async function handleStatus(ctx: Context): Promise<void> {
 • **Created:** ${session.createdAt.toLocaleString()}
 • **Last Activity:** ${session.lastActivity.toLocaleString()}
 • **Mode:** ${config.STREAMING_MODE}
+• **Dangerous Mode:** ${dangerousMode}
 • **Uptime:** ${getUptimeFormatted()}`;
 
   await ctx.reply(status);
@@ -334,4 +347,190 @@ export async function handleExplore(ctx: Context): Promise<void> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await ctx.reply(`❌ Error: ${errorMessage}`);
   }
+}
+
+// Session resume commands
+
+export async function handleResume(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const history = sessionManager.getSessionHistory(chatId, 5);
+
+  if (history.length === 0) {
+    await ctx.reply('ℹ️ No session history found.\n\nUse `/project <name>` to start a new session.');
+    return;
+  }
+
+  // Build inline keyboard with session options
+  const keyboard = history.map((entry, index) => {
+    const date = new Date(entry.lastActivity);
+    const timeAgo = formatTimeAgo(date);
+    const preview = entry.lastMessagePreview
+      ? entry.lastMessagePreview.substring(0, 30) + (entry.lastMessagePreview.length > 30 ? '...' : '')
+      : 'No messages';
+
+    return [
+      {
+        text: `${entry.projectName} (${timeAgo})`,
+        callback_data: `resume:${entry.conversationId}`,
+      },
+    ];
+  });
+
+  await ctx.reply('📜 **Recent Sessions**\n\nSelect a session to resume:', {
+    reply_markup: {
+      inline_keyboard: keyboard,
+    },
+  });
+}
+
+export async function handleResumeCallback(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const data = ctx.callbackQuery?.data;
+  if (!data || !data.startsWith('resume:')) return;
+
+  const conversationId = data.replace('resume:', '');
+  const session = sessionManager.resumeSession(chatId, conversationId);
+
+  if (!session) {
+    await ctx.answerCallbackQuery({ text: 'Session not found' });
+    return;
+  }
+
+  // Clear conversation history for fresh start with same project
+  clearConversation(chatId);
+
+  await ctx.answerCallbackQuery({ text: 'Session resumed!' });
+  await ctx.editMessageText(
+    `✅ Resumed session for **${path.basename(session.workingDirectory)}**\n\n` +
+    `Working directory: \`${session.workingDirectory}\``
+  );
+}
+
+export async function handleContinue(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const session = sessionManager.resumeLastSession(chatId);
+
+  if (!session) {
+    await ctx.reply('ℹ️ No previous session to continue.\n\nUse `/project <name>` to start a new session.');
+    return;
+  }
+
+  // Clear conversation history for fresh start with same project
+  clearConversation(chatId);
+
+  await ctx.reply(
+    `✅ Continuing **${path.basename(session.workingDirectory)}**\n\n` +
+    `Working directory: \`${session.workingDirectory}\``
+  );
+}
+
+// Loop mode command
+
+export async function handleLoop(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const text = ctx.message?.text || '';
+  const task = text.split(' ').slice(1).join(' ').trim();
+
+  if (!task) {
+    await ctx.reply(
+      `Usage: \`/loop <task>\`\n\n` +
+      `Runs Claude iteratively until the task is complete (max ${config.MAX_LOOP_ITERATIONS} iterations).\n\n` +
+      `Claude will say "DONE" when finished.`
+    );
+    return;
+  }
+
+  const session = sessionManager.getSession(chatId);
+  if (!session) {
+    await ctx.reply('⚠️ No project set.\n\nUse `/project <name>` to open a project first.');
+    return;
+  }
+
+  // Queue the loop request
+  try {
+    await queueRequest(chatId, task, async () => {
+      await messageSender.startStreaming(ctx);
+
+      const abortController = new AbortController();
+      setAbortController(chatId, abortController);
+
+      try {
+        const response = await sendLoopToAgent(chatId, task, {
+          onProgress: (progressText) => {
+            messageSender.updateStream(ctx, progressText);
+          },
+          abortController,
+        });
+
+        await messageSender.finishStreaming(ctx, response.text);
+      } catch (error) {
+        await messageSender.cancelStreaming(ctx);
+        throw error;
+      }
+    });
+  } catch (error) {
+    if ((error as Error).message === 'Queue cleared') return;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    await ctx.reply(`❌ Error: ${errorMessage}`);
+  }
+}
+
+// Session listing command
+
+export async function handleSessions(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const history = sessionManager.getSessionHistory(chatId, 10);
+  const currentSession = sessionManager.getSession(chatId);
+
+  if (history.length === 0 && !currentSession) {
+    await ctx.reply('ℹ️ No sessions found.\n\nUse `/project <name>` to start a new session.');
+    return;
+  }
+
+  let message = '📋 **Sessions**\n\n';
+
+  if (currentSession) {
+    message += `**Active:**\n• \`${path.basename(currentSession.workingDirectory)}\` (${formatTimeAgo(currentSession.lastActivity)})\n\n`;
+  }
+
+  if (history.length > 0) {
+    message += '**Recent:**\n';
+    for (const entry of history) {
+      const isActive =
+        currentSession && currentSession.conversationId === entry.conversationId;
+      const marker = isActive ? '→ ' : '• ';
+      const date = new Date(entry.lastActivity);
+      message += `${marker}\`${entry.projectName}\` (${formatTimeAgo(date)})\n`;
+    }
+  }
+
+  message += '\n_Use `/resume` to switch sessions or `/continue` to resume the last one._';
+
+  await ctx.reply(message);
+}
+
+// Helper function
+
+function formatTimeAgo(date: Date): string {
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
 }

@@ -14,6 +14,11 @@ import {
   handleModelCommand,
   handlePlan,
   handleExplore,
+  handleResume,
+  handleResumeCallback,
+  handleContinue,
+  handleLoop,
+  handleSessions,
 } from './handlers/command.handler.js';
 import { handleMessage } from './handlers/message.handler.js';
 
@@ -38,6 +43,23 @@ export function createBot(): Bot {
   bot.command('model', handleModelCommand);
   bot.command('plan', handlePlan);
   bot.command('explore', handleExplore);
+
+  // Session resume commands
+  bot.command('resume', handleResume);
+  bot.command('continue', handleContinue);
+  bot.command('sessions', handleSessions);
+
+  // Loop mode
+  bot.command('loop', handleLoop);
+
+  // Callback query handler for inline keyboards
+  bot.on('callback_query:data', async (ctx) => {
+    const data = ctx.callbackQuery.data;
+
+    if (data.startsWith('resume:')) {
+      await handleResumeCallback(ctx);
+    }
+  });
 
   // Handle regular text messages
   bot.on('message:text', handleMessage);

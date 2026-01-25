@@ -20,6 +20,15 @@ const envSchema = z.object({
     .string()
     .default('4000')
     .transform((val) => parseInt(val, 10)),
+  // New config options
+  DANGEROUS_MODE: z
+    .string()
+    .default('false')
+    .transform((val) => val.toLowerCase() === 'true'),
+  MAX_LOOP_ITERATIONS: z
+    .string()
+    .default('5')
+    .transform((val) => parseInt(val, 10)),
 });
 
 const parsed = envSchema.safeParse(process.env);

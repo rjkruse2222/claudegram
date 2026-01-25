@@ -1,3 +1,5 @@
+import { sessionHistory, SessionHistoryEntry } from './session-history.js';
+
 interface Session {
   conversationId: string;
   workingDirectory: string;
@@ -12,21 +14,30 @@ class SessionManager {
     return this.sessions.get(chatId);
   }
 
-  createSession(chatId: number, workingDirectory: string): Session {
+  createSession(chatId: number, workingDirectory: string, conversationId?: string): Session {
     const session: Session = {
-      conversationId: this.generateConversationId(),
+      conversationId: conversationId || this.generateConversationId(),
       workingDirectory,
       createdAt: new Date(),
       lastActivity: new Date(),
     };
     this.sessions.set(chatId, session);
+
+    // Persist to history
+    sessionHistory.saveSession(chatId, session.conversationId, workingDirectory);
+
     return session;
   }
 
-  updateActivity(chatId: number): void {
+  updateActivity(chatId: number, messagePreview?: string): void {
     const session = this.sessions.get(chatId);
     if (session) {
       session.lastActivity = new Date();
+
+      // Update history with last message preview
+      if (messagePreview) {
+        sessionHistory.updateLastMessage(chatId, session.conversationId, messagePreview);
+      }
     }
   }
 
@@ -35,6 +46,8 @@ class SessionManager {
     if (existing) {
       existing.workingDirectory = directory;
       existing.lastActivity = new Date();
+      // Save updated session
+      sessionHistory.saveSession(chatId, existing.conversationId, directory);
       return existing;
     }
     return this.createSession(chatId, directory);
@@ -42,6 +55,40 @@ class SessionManager {
 
   clearSession(chatId: number): void {
     this.sessions.delete(chatId);
+    // Note: We don't clear history here - history is for resuming past sessions
+  }
+
+  resumeSession(chatId: number, conversationId: string): Session | undefined {
+    const historyEntry = sessionHistory.getSessionByConversationId(chatId, conversationId);
+    if (!historyEntry) {
+      return undefined;
+    }
+
+    const session: Session = {
+      conversationId: historyEntry.conversationId,
+      workingDirectory: historyEntry.projectPath,
+      createdAt: new Date(historyEntry.createdAt),
+      lastActivity: new Date(),
+    };
+    this.sessions.set(chatId, session);
+
+    // Update history activity
+    sessionHistory.saveSession(chatId, conversationId, historyEntry.projectPath);
+
+    return session;
+  }
+
+  resumeLastSession(chatId: number): Session | undefined {
+    const lastEntry = sessionHistory.getLastSession(chatId);
+    if (!lastEntry) {
+      return undefined;
+    }
+
+    return this.resumeSession(chatId, lastEntry.conversationId);
+  }
+
+  getSessionHistory(chatId: number, limit: number = 5): SessionHistoryEntry[] {
+    return sessionHistory.getHistory(chatId, limit);
   }
 
   private generateConversationId(): string {

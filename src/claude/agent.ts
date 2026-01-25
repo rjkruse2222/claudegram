@@ -1,5 +1,6 @@
 import { query, type SDKMessage } from '@anthropic-ai/claude-code';
 import { sessionManager } from './session-manager.js';
+import { config } from '../config.js';
 
 interface AgentResponse {
   text: string;
@@ -18,6 +19,11 @@ interface AgentOptions {
   model?: string;
 }
 
+interface LoopOptions extends AgentOptions {
+  maxIterations?: number;
+  onIterationComplete?: (iteration: number, response: string) => void;
+}
+
 const conversationHistory: Map<number, ConversationMessage[]> = new Map();
 
 // Track current model per chat (default: sonnet)
@@ -32,6 +38,22 @@ Guidelines:
 - If a task requires multiple steps, execute them and summarize what you did
 - When you can't do something, explain why briefly`;
 
+type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
+function getPermissionMode(command?: string): PermissionMode {
+  // If DANGEROUS_MODE is enabled, bypass all permissions
+  if (config.DANGEROUS_MODE) {
+    return 'bypassPermissions';
+  }
+
+  // Otherwise, use command-specific modes
+  if (command === 'plan') {
+    return 'plan';
+  }
+
+  return 'acceptEdits';
+}
+
 export async function sendToAgent(
   chatId: number,
   message: string,
@@ -45,7 +67,7 @@ export async function sendToAgent(
     throw new Error('No active session. Use /project to set working directory.');
   }
 
-  sessionManager.updateActivity(chatId);
+  sessionManager.updateActivity(chatId, message);
 
   // Get or initialize conversation history
   let history = conversationHistory.get(chatId) || [];
@@ -66,8 +88,8 @@ export async function sendToAgent(
   const toolsUsed: string[] = [];
   let gotResult = false;
 
-  // Determine permission mode based on command
-  const permissionMode = command === 'plan' ? 'plan' : 'acceptEdits';
+  // Determine permission mode
+  const permissionMode = getPermissionMode(command);
 
   // Determine model to use
   const effectiveModel = model || chatModels.get(chatId) || undefined;
@@ -171,6 +193,92 @@ export async function sendToAgent(
   };
 }
 
+export async function sendLoopToAgent(
+  chatId: number,
+  message: string,
+  options: LoopOptions = {}
+): Promise<AgentResponse> {
+  const {
+    onProgress,
+    abortController,
+    maxIterations = config.MAX_LOOP_ITERATIONS,
+    onIterationComplete,
+  } = options;
+
+  const session = sessionManager.getSession(chatId);
+
+  if (!session) {
+    throw new Error('No active session. Use /project to set working directory.');
+  }
+
+  // Wrap the prompt with loop instructions
+  const loopPrompt = `${message}
+
+IMPORTANT: When you have fully completed this task, respond with the word "DONE" on its own line at the end of your response. If you need to continue working, do not say "DONE".`;
+
+  let iteration = 0;
+  let combinedText = '';
+  const allToolsUsed: string[] = [];
+  let isComplete = false;
+
+  while (iteration < maxIterations && !isComplete) {
+    iteration++;
+
+    // Check for abort
+    if (abortController?.signal.aborted) {
+      return {
+        text: '🛑 Loop cancelled.',
+        toolsUsed: allToolsUsed,
+      };
+    }
+
+    const iterationPrefix = `\n\n--- Iteration ${iteration}/${maxIterations} ---\n\n`;
+    combinedText += iterationPrefix;
+    onProgress?.(combinedText);
+
+    // For subsequent iterations, prompt Claude to continue
+    const currentPrompt = iteration === 1 ? loopPrompt : 'Continue the task. Say "DONE" when complete.';
+
+    try {
+      const response = await sendToAgent(chatId, currentPrompt, {
+        onProgress: (text) => {
+          onProgress?.(combinedText + text);
+        },
+        abortController,
+        model: options.model,
+      });
+
+      combinedText += response.text;
+      allToolsUsed.push(...response.toolsUsed);
+
+      onIterationComplete?.(iteration, response.text);
+
+      // Check if Claude said DONE
+      if (response.text.includes('DONE')) {
+        isComplete = true;
+        combinedText += '\n\n✅ Loop completed.';
+      } else if (iteration >= maxIterations) {
+        combinedText += `\n\n⚠️ Max iterations (${maxIterations}) reached.`;
+      }
+
+      onProgress?.(combinedText);
+    } catch (error) {
+      if (abortController?.signal.aborted) {
+        return {
+          text: combinedText + '\n\n🛑 Loop cancelled.',
+          toolsUsed: allToolsUsed,
+        };
+      }
+      throw error;
+    }
+  }
+
+  return {
+    text: combinedText,
+    toolsUsed: allToolsUsed,
+  };
+}
+
 export function clearConversation(chatId: number): void {
   conversationHistory.delete(chatId);
 }
@@ -185,4 +293,8 @@ export function getModel(chatId: number): string {
 
 export function clearModel(chatId: number): void {
   chatModels.delete(chatId);
+}
+
+export function isDangerousMode(): boolean {
+  return config.DANGEROUS_MODE;
 }

@@ -1,4 +1,4 @@
-import { Context } from 'grammy';
+import { Context, Api } from 'grammy';
 import { config } from '../config.js';
 import { splitMessage } from './markdown.js';
 
@@ -7,7 +7,10 @@ interface StreamState {
   content: string;
   lastUpdate: number;
   updateScheduled: boolean;
+  typingInterval: NodeJS.Timeout | null;
 }
+
+const TYPING_INTERVAL_MS = 4000; // Send typing every 4 seconds
 
 export class MessageSender {
   private streamStates: Map<number, StreamState> = new Map();
@@ -26,12 +29,33 @@ export class MessageSender {
 
     const message = await ctx.reply('▌');
 
+    // Start continuous typing indicator
+    const typingInterval = this.startTypingIndicator(ctx.api, chatId);
+
     this.streamStates.set(chatId, {
       messageId: message.message_id,
       content: '',
       lastUpdate: Date.now(),
       updateScheduled: false,
+      typingInterval,
     });
+  }
+
+  private startTypingIndicator(api: Api, chatId: number): NodeJS.Timeout {
+    // Send typing immediately
+    api.sendChatAction(chatId, 'typing').catch(() => {});
+
+    // Then send every TYPING_INTERVAL_MS
+    return setInterval(() => {
+      api.sendChatAction(chatId, 'typing').catch(() => {});
+    }, TYPING_INTERVAL_MS);
+  }
+
+  private stopTypingIndicator(state: StreamState): void {
+    if (state.typingInterval) {
+      clearInterval(state.typingInterval);
+      state.typingInterval = null;
+    }
   }
 
   async updateStream(ctx: Context, content: string): Promise<void> {
@@ -87,24 +111,29 @@ export class MessageSender {
 
     const state = this.streamStates.get(chatId);
 
-    if (state?.messageId) {
-      const parts = splitMessage(finalContent, config.MAX_MESSAGE_LENGTH);
+    if (state) {
+      // Stop typing indicator
+      this.stopTypingIndicator(state);
 
-      try {
-        // Update the first message with first part
-        await ctx.api.editMessageText(
-          chatId,
-          state.messageId,
-          parts[0] || 'Done.',
-          { parse_mode: undefined }
-        );
+      if (state.messageId) {
+        const parts = splitMessage(finalContent, config.MAX_MESSAGE_LENGTH);
 
-        // Send additional messages for remaining parts
-        for (let i = 1; i < parts.length; i++) {
-          await ctx.reply(parts[i], { parse_mode: undefined });
+        try {
+          // Update the first message with first part
+          await ctx.api.editMessageText(
+            chatId,
+            state.messageId,
+            parts[0] || 'Done.',
+            { parse_mode: undefined }
+          );
+
+          // Send additional messages for remaining parts
+          for (let i = 1; i < parts.length; i++) {
+            await ctx.reply(parts[i], { parse_mode: undefined });
+          }
+        } catch (error) {
+          console.error('Error finishing stream:', error);
         }
-      } catch (error) {
-        console.error('Error finishing stream:', error);
       }
     }
 
@@ -116,20 +145,34 @@ export class MessageSender {
     if (!chatId) return;
 
     const state = this.streamStates.get(chatId);
-    if (state?.messageId) {
-      try {
-        await ctx.api.editMessageText(
-          chatId,
-          state.messageId,
-          '⚠️ Request cancelled',
-          { parse_mode: undefined }
-        );
-      } catch (error) {
-        console.error('Error cancelling stream:', error);
+    if (state) {
+      // Stop typing indicator
+      this.stopTypingIndicator(state);
+
+      if (state.messageId) {
+        try {
+          await ctx.api.editMessageText(
+            chatId,
+            state.messageId,
+            '⚠️ Request cancelled',
+            { parse_mode: undefined }
+          );
+        } catch (error) {
+          console.error('Error cancelling stream:', error);
+        }
       }
     }
 
     this.streamStates.delete(chatId);
+  }
+
+  // Send typing indicator for a specific chat (useful for long operations)
+  async sendTyping(ctx: Context): Promise<void> {
+    try {
+      await ctx.api.sendChatAction(ctx.chat!.id, 'typing');
+    } catch (error) {
+      console.error('Error sending typing:', error);
+    }
   }
 }
 
