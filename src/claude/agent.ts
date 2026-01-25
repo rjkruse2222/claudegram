@@ -11,7 +11,17 @@ interface ConversationMessage {
   content: string;
 }
 
+interface AgentOptions {
+  onProgress?: (text: string) => void;
+  abortController?: AbortController;
+  command?: string;
+  model?: string;
+}
+
 const conversationHistory: Map<number, ConversationMessage[]> = new Map();
+
+// Track current model per chat (default: sonnet)
+const chatModels: Map<number, string> = new Map();
 
 const SYSTEM_PROMPT = `You are Claude, an AI assistant helping via Telegram.
 
@@ -25,8 +35,10 @@ Guidelines:
 export async function sendToAgent(
   chatId: number,
   message: string,
-  onProgress?: (text: string) => void
+  options: AgentOptions = {}
 ): Promise<AgentResponse> {
+  const { onProgress, abortController, command, model } = options;
+
   const session = sessionManager.getSession(chatId);
 
   if (!session) {
@@ -38,35 +50,60 @@ export async function sendToAgent(
   // Get or initialize conversation history
   let history = conversationHistory.get(chatId) || [];
 
+  // Determine the prompt based on command
+  let prompt = message;
+  if (command === 'explore') {
+    prompt = `Explore the codebase and answer: ${message}`;
+  }
+
   // Add user message to history
   history.push({
     role: 'user',
-    content: message,
+    content: prompt,
   });
 
   let fullText = '';
   const toolsUsed: string[] = [];
   let gotResult = false;
 
+  // Determine permission mode based on command
+  const permissionMode = command === 'plan' ? 'plan' : 'acceptEdits';
+
+  // Determine model to use
+  const effectiveModel = model || chatModels.get(chatId) || undefined;
+
   try {
-    const abortController = new AbortController();
+    const controller = abortController || new AbortController();
+
+    const queryOptions: Parameters<typeof query>[0]['options'] = {
+      cwd: session.workingDirectory,
+      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Task'],
+      permissionMode,
+      abortController: controller,
+      pathToClaudeCodeExecutable: '/Users/nacho/.local/bin/claude',
+      stderr: (data: string) => {
+        console.error('[Claude stderr]:', data);
+      },
+    };
+
+    // Add model if specified
+    if (effectiveModel) {
+      (queryOptions as Record<string, unknown>).model = effectiveModel;
+    }
 
     const response = await query({
-      prompt: message,
-      options: {
-        cwd: session.workingDirectory,
-        allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Task'],
-        permissionMode: 'acceptEdits',
-        abortController,
-        pathToClaudeCodeExecutable: '/Users/nacho/.local/bin/claude',
-        stderr: (data: string) => {
-          console.error('[Claude stderr]:', data);
-        },
-      },
+      prompt,
+      options: queryOptions,
     });
 
     // Process response messages
     for await (const responseMessage of response) {
+      // Check for abort
+      if (controller.signal.aborted) {
+        fullText = '🛑 Request cancelled.';
+        break;
+      }
+
       console.log('[Claude] Message type:', responseMessage.type);
 
       if (responseMessage.type === 'assistant') {
@@ -100,6 +137,14 @@ export async function sendToAgent(
       }
     }
   } catch (error) {
+    // If aborted, return cancellation message
+    if (abortController?.signal.aborted) {
+      return {
+        text: '🛑 Request cancelled.',
+        toolsUsed,
+      };
+    }
+
     // If we got a result, ignore process exit errors (SDK quirk)
     if (gotResult && error instanceof Error && error.message.includes('exited with code')) {
       console.log('[Claude] Ignoring exit code error after successful result');
@@ -111,7 +156,7 @@ export async function sendToAgent(
   }
 
   // Add assistant response to history
-  if (fullText) {
+  if (fullText && !abortController?.signal.aborted) {
     history.push({
       role: 'assistant',
       content: fullText,
@@ -128,4 +173,16 @@ export async function sendToAgent(
 
 export function clearConversation(chatId: number): void {
   conversationHistory.delete(chatId);
+}
+
+export function setModel(chatId: number, model: string): void {
+  chatModels.set(chatId, model);
+}
+
+export function getModel(chatId: number): string {
+  return chatModels.get(chatId) || 'sonnet';
+}
+
+export function clearModel(chatId: number): void {
+  chatModels.delete(chatId);
 }

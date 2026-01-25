@@ -1,7 +1,17 @@
 import { Context } from 'grammy';
 import { sessionManager } from '../../claude/session-manager.js';
-import { clearConversation } from '../../claude/agent.js';
+import { clearConversation, sendToAgent, setModel, getModel } from '../../claude/agent.js';
 import { config } from '../../config.js';
+import { messageSender } from '../../telegram/message-sender.js';
+import { getUptimeFormatted } from '../middleware/stale-filter.js';
+import { getAvailableCommands } from '../../claude/command-parser.js';
+import {
+  cancelRequest,
+  clearQueue,
+  isProcessing,
+  queueRequest,
+  setAbortController,
+} from '../../claude/request-queue.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -19,6 +29,7 @@ I bridge your messages to Claude Code running on your local machine.
 • \`/newproject <name>\` - Create a new project
 • \`/new\` - Clear session and start fresh
 • \`/status\` - Show current session info
+• \`/commands\` - Show all available commands
 
 Current mode: ${config.STREAMING_MODE}`;
 
@@ -148,13 +159,17 @@ export async function handleStatus(ctx: Context): Promise<void> {
     return;
   }
 
+  const currentModel = getModel(chatId);
+
   const status = `📊 **Session Status**
 
 • **Working Directory:** \`${session.workingDirectory}\`
 • **Session ID:** \`${session.conversationId}\`
+• **Model:** ${currentModel}
 • **Created:** ${session.createdAt.toLocaleString()}
 • **Last Activity:** ${session.lastActivity.toLocaleString()}
-• **Mode:** ${config.STREAMING_MODE}`;
+• **Mode:** ${config.STREAMING_MODE}
+• **Uptime:** ${getUptimeFormatted()}`;
 
   await ctx.reply(status);
 }
@@ -165,4 +180,158 @@ export async function handleMode(ctx: Context): Promise<void> {
     : '⏳ **Wait Mode**\n\nResponses appear only when complete.';
 
   await ctx.reply(mode);
+}
+
+// New commands
+
+export async function handlePing(ctx: Context): Promise<void> {
+  const uptime = getUptimeFormatted();
+  await ctx.reply(`🏓 Pong!\n\nUptime: ${uptime}`);
+}
+
+export async function handleCancel(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const wasProcessing = isProcessing(chatId);
+  const cancelled = cancelRequest(chatId);
+  const clearedCount = clearQueue(chatId);
+
+  if (cancelled || clearedCount > 0) {
+    let message = '🛑 Cancelled.';
+    if (clearedCount > 0) {
+      message += ` (${clearedCount} queued request${clearedCount > 1 ? 's' : ''} cleared)`;
+    }
+    await ctx.reply(message);
+  } else if (!wasProcessing) {
+    await ctx.reply('ℹ️ Nothing to cancel.');
+  }
+}
+
+export async function handleCommands(ctx: Context): Promise<void> {
+  await ctx.reply(getAvailableCommands());
+}
+
+export async function handleModelCommand(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const text = ctx.message?.text || '';
+  const args = text.split(' ').slice(1).join(' ').trim().toLowerCase();
+
+  const validModels = ['sonnet', 'opus', 'haiku'];
+
+  if (!args) {
+    const currentModel = getModel(chatId);
+    await ctx.reply(
+      `**Current model:** ${currentModel}\n\n` +
+      `**Available models:**\n• sonnet (default)\n• opus\n• haiku\n\n` +
+      `Use \`/model <name>\` to switch.`
+    );
+    return;
+  }
+
+  if (!validModels.includes(args)) {
+    await ctx.reply(`❌ Unknown model "${args}".\n\nAvailable: ${validModels.join(', ')}`);
+    return;
+  }
+
+  setModel(chatId, args);
+  await ctx.reply(`✅ Model set to **${args}**`);
+}
+
+export async function handlePlan(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const text = ctx.message?.text || '';
+  const task = text.split(' ').slice(1).join(' ').trim();
+
+  if (!task) {
+    await ctx.reply('Usage: `/plan <task description>`\n\nEnters plan mode for complex tasks.');
+    return;
+  }
+
+  const session = sessionManager.getSession(chatId);
+  if (!session) {
+    await ctx.reply('⚠️ No project set.\n\nUse `/project <name>` to open a project first.');
+    return;
+  }
+
+  // Queue the plan request
+  try {
+    await queueRequest(chatId, task, async () => {
+      await messageSender.startStreaming(ctx);
+
+      const abortController = new AbortController();
+      setAbortController(chatId, abortController);
+
+      try {
+        const response = await sendToAgent(chatId, task, {
+          onProgress: (progressText) => {
+            messageSender.updateStream(ctx, progressText);
+          },
+          abortController,
+          command: 'plan',
+        });
+
+        await messageSender.finishStreaming(ctx, response.text);
+      } catch (error) {
+        await messageSender.cancelStreaming(ctx);
+        throw error;
+      }
+    });
+  } catch (error) {
+    if ((error as Error).message === 'Queue cleared') return;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    await ctx.reply(`❌ Error: ${errorMessage}`);
+  }
+}
+
+export async function handleExplore(ctx: Context): Promise<void> {
+  const chatId = ctx.chat?.id;
+  if (!chatId) return;
+
+  const text = ctx.message?.text || '';
+  const question = text.split(' ').slice(1).join(' ').trim();
+
+  if (!question) {
+    await ctx.reply('Usage: `/explore <question>`\n\nExplores the codebase to answer your question.');
+    return;
+  }
+
+  const session = sessionManager.getSession(chatId);
+  if (!session) {
+    await ctx.reply('⚠️ No project set.\n\nUse `/project <name>` to open a project first.');
+    return;
+  }
+
+  // Queue the explore request
+  try {
+    await queueRequest(chatId, question, async () => {
+      await messageSender.startStreaming(ctx);
+
+      const abortController = new AbortController();
+      setAbortController(chatId, abortController);
+
+      try {
+        const response = await sendToAgent(chatId, question, {
+          onProgress: (progressText) => {
+            messageSender.updateStream(ctx, progressText);
+          },
+          abortController,
+          command: 'explore',
+        });
+
+        await messageSender.finishStreaming(ctx, response.text);
+      } catch (error) {
+        await messageSender.cancelStreaming(ctx);
+        throw error;
+      }
+    });
+  } catch (error) {
+    if ((error as Error).message === 'Queue cleared') return;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    await ctx.reply(`❌ Error: ${errorMessage}`);
+  }
 }
